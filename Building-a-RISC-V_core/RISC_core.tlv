@@ -46,7 +46,8 @@
    // YOUR CODE HERE
    // Program Counter
    $pc[31:0] = >>1$next_pc[31:0];
-   $next_pc[31:0] = $reset ? 32'b 0 : $pc + 4;
+   $next_pc[31:0] = $reset ? 32'b 0 :
+                    $taken_br ? $br_tgt_pc : $pc + 4;
    
    //Instruction Memory macro
    `READONLY_MEM($pc, $$instr[31:0]);
@@ -68,9 +69,9 @@
    
    $rs1_valid = $is_r_instr || $is_i_instr || $is_s_instr || $is_b_instr;
    $rs2_valid = $is_r_instr || $is_b_instr || $is_s_instr;
-   $rd_valid = $rs2 == 5'b 00000 ? 1'b 0 : $is_r_instr || $is_i_instr || $is_u_instr || $is_j_instr;
+   $rd_valid = $rd == 5'b 00000 ? 1'b 0 : ($is_r_instr || $is_i_instr || $is_u_instr || $is_j_instr);
    $funct3_valid = $is_r_instr || $is_i_instr || $is_s_instr || $is_b_instr;
-   $imm_valid = !$is_r_instr;
+   $imm_valid = $is_u_instr || $is_i_instr || $is_s_instr || $is_b_instr || $is_j_instr;
    
    //Immediate Value Field
    $imm[31:0] = $is_i_instr ? { {21{$instr[31]}}, $instr[30:20]}:
@@ -97,10 +98,19 @@
        $is_addi ? $src1_value + $imm :
        $is_add ? $src1_value + $src2_value: 32'b 0;
    
-   //
+   //Branch Logic
+   $taken_br = $is_beg ? ($src1_value == $src2_value) :
+               $is_bne ? ($src1_value != $src2_value) :
+               $is_blt ? ($src1_value < $src2_value) ^ ($src1_value[31] != $src2_value[31]) :
+               $is_bge ? ($src1_value >= $src2_value) ^ ($src1_value[31] != $src2_value[31]) :
+               $is_bltu ? ($src1_value < $src2_value) :
+               $is_bgeu ? ($src1_value >= $src2_value) : 1'b 0;
+   
+   $br_tgt_pc[31:0] = $pc + $imm;
    
    // Assert these to end simulation (before Makerchip cycle limit).
-   *passed = 1'b0;
+   //*passed = 1'b0;
+   m4+tb()
    *failed = *cyc_cnt > M4_MAX_CYC;
    
    m4+rf(32, 32, $reset, $rd_valid, $rd[4:0], $result[31:0], $rs1_valid, $rs1[4:0], $src1_value, $rs2_valid, $rs2[4:0], $src2_value)
